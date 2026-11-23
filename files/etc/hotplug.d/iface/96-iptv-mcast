@@ -1,0 +1,11 @@
+#!/bin/sh
+# IPTV 组播：把 br-mux-1 的三个端口都设为 IGMP 路由端口。
+# 不设的话桥不会向机顶盒发 IGMP 查询，机顶盒只在“加入”时发一次报文，
+# 上游成员关系约 4~5 分钟过期就断流（直播播几分钟卡死、切台可恢复）。
+# 2026-11-23 在 XG2010G 上实测：设置后同一路直播连续 9 Mbps 跑了 7 分钟以上不再断。
+[ -d /sys/class/net/br-mux-1/brif ] || exit 0
+for p in mux-up1 mux-dn1 mux-mc1; do
+  [ -e "/sys/class/net/br-mux-1/brif/$p/multicast_router" ] || continue
+  echo 1 > "/sys/class/net/br-mux-1/brif/$p/multicast_router" 2>/dev/null
+done
+logger -t iptv-mcast "br-mux-1 ports set multicast_router=1"
