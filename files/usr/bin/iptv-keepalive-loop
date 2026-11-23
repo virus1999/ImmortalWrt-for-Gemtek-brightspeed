@@ -1,0 +1,52 @@
+#!/bin/sh
+# IPTV 直播保活 v2 (2026-11-23)
+# 背景: 机顶盒只发一次加入, 回应查询的节奏约 2 分钟一轮; 换台后新加入的那一路
+# 一旦没人续订, 成员 260s 过期, 上游立刻掐流 -> 画面卡死(切台/快进可临时恢复)。
+# 做法: 由本机 rtp2httpd(127.0.0.1:5140) 代订, 让电信持续推流;
+#       配合 dn1 multicast_flood=1 兜底(仅在该组桥里无成员时生效)。
+# v2: 多条目时取「剩余计时最长」的那条(=最新加入的台), 避免切台后挑错组。
+LOG=/var/log/iptv-keepalive.log
+LAST=/tmp/iptv-last-group
+G=$(cat $LAST 2>/dev/null)
+PID=""
+PG=""
+i=0
+
+set_flood() {
+  F=/sys/class/net/br-mux-1/brif/mux-dn1/multicast_flood
+  [ -e $F ] && [ "$(cat $F 2>/dev/null)" != "1" ] && echo 1 > $F 2>/dev/null
+}
+
+pick_group() {
+  bridge -s mdb show dev br-mux-1 2>/dev/null | awk '
+    /port mux-dn1/ && /grp 23/ {
+      for (x=1; x<=NF; x++) if ($x=="grp") g=$(x+1);
+      if (g ~ /^(224\.|239\.255\.255)/) next;
+      t=$NF+0;
+      if (t>best) { best=t; sel=g }
+    }
+    END { if (sel!="") print sel }'
+}
+
+while :; do
+  set_flood
+  N=$(pick_group)
+  if [ -n "$N" ] && [ "$N" != "$G" ]; then
+    G="$N"; echo "$G" > $LAST
+  fi
+
+  if [ -n "$PID" ] && ! kill -0 $PID 2>/dev/null; then PID=""; fi
+
+  if [ -n "$G" ] && { [ -z "$PID" ] || [ $i -ge 15 ] || [ "$G" != "$PG" ]; }; then
+    curl -s -m 400 -o /dev/null "http://127.0.0.1:5140/rtp/$G:5140" >/dev/null 2>&1 &
+    NP=$!
+    sleep 4
+    [ -n "$PID" ] && kill $PID 2>/dev/null
+    PID=$NP
+    PG="$G"
+    i=0
+    echo "$(date +%H:%M:%S) rejoin $G" >> $LOG
+  fi
+  i=$((i+1))
+  sleep 20
+done
