@@ -6,11 +6,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-echo "== 0. 检查 package/custom 是否齐全 =="
-for d in daed luci-app-daed lucky luci-app-lucky; do
-  [ -f "package/custom/$d/Makefile" ] || { echo "缺少 package/custom/$d"; exit 1; }
+echo "== 0. 检查定制包是否齐全 =="
+# daed 系列放在 package/ 顶层；lucky 系列沿用上游容器目录 package/lucky/
+for p in package/daed package/luci-app-daed package/lucky/lucky package/lucky/luci-app-lucky; do
+  [ -f "$p/Makefile" ] || { echo "缺少 $p"; exit 1; }
 done
-grep -q 'PKG_VERSION:=3.5.0' package/custom/lucky/Makefile || { echo "!! package/custom/lucky 不是 3.5.0"; exit 1; }
+grep -q 'PKG_VERSION:=3.5.0' package/lucky/lucky/Makefile || { echo "!! package/lucky/lucky 不是 3.5.0"; exit 1; }
 echo "定制包就位"
 
 echo "== 1. 依赖 =="
@@ -26,15 +27,12 @@ bash scripts/fix-stale-golang-host.sh
 FEED_PATCHES_STRICT=1 bash scripts/select-feed-providers.sh
 FEED_PATCHES_STRICT=1 bash scripts/apply-feed-patches.sh
 
-echo "== 2b. 移走 feeds 里同名的旧 lucky 包，避免与 package/custom 冲突 =="
+echo "== 2b. 移走 feeds 里与本地包同名的 lucky，避免重复 PKG_NAME =="
 for n in lucky luci-app-lucky; do
   find feeds -name Makefile -exec grep -l "PKG_NAME:=$n\$" {} \; 2>/dev/null | while read -r mk; do
     src_dir="$(dirname "$mk")"
-    case "$src_dir" in
-      */package/custom/*) continue ;;
-    esac
     echo "   移走 $src_dir"
-    mv "$src_dir" "${src_dir}.disabled-by-custom"
+    mv "$src_dir" "${src_dir}.disabled-by-local"
   done
 done
 
@@ -53,7 +51,7 @@ for k in CONFIG_TARGET_airoha_an7581_DEVICE_gemtek_xg2010g-ubi \
          CONFIG_KERNEL_XDP_SOCKETS \
          CONFIG_PACKAGE_kmod-sched-bpf \
          CONFIG_PACKAGE_kmod-xdp-sockets-diag; do
-  grep -q "^$k=y" .config || { echo "!! $k 没选中，检查 package/custom 是否就位"; exit 1; }
+  grep -q "^$k=y" .config || { echo "!! $k 没选中，检查定制包是否就位"; exit 1; }
 done
 grep -q '^CONFIG_PACKAGE_lucky=y' .config || { echo "!! lucky 没选中"; exit 1; }
 grep -q '^CONFIG_PACKAGE_luci-app-lucky=y' .config || { echo "!! luci-app-lucky 没选中"; exit 1; }
