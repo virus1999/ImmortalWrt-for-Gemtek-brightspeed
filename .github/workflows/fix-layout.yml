@@ -1,0 +1,49 @@
+name: Fix package layout
+
+# 一次性维护任务：
+#   1) daed / luci-app-daed 移到 package/ 顶层（OpenWrt 只认真实可扫描的包目录）
+#   2) 上游 package/lucky 容器里的 lucky(2.27.2) 与 luci-app-lucky 换成本地 3.5.0 版本
+#   3) 删掉四处重复的 package/custom
+#   4) build.sh 换成修正路径后的版本（从外链取，避免长文本被编辑器改写）
+# 跑完确认无误后可以删掉本工作流。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restructure packages
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/keep
+          mv package/custom/lucky /tmp/keep/lucky
+          mv package/custom/luci-app-lucky /tmp/keep/luci-app-lucky
+          git mv package/custom/daed package/daed
+          git mv package/custom/luci-app-daed package/luci-app-daed
+          git rm -r --quiet package/lucky/lucky package/lucky/luci-app-lucky
+          cp -a /tmp/keep/lucky package/lucky/lucky
+          cp -a /tmp/keep/luci-app-lucky package/lucky/luci-app-lucky
+          rm -rf package/custom
+          sed -i -e 's#package/custom/luci-app-lucky#package/lucky/luci-app-lucky#g' -e 's#package/custom/lucky#package/lucky/lucky#g' -e 's#package/custom/luci-app-daed#package/luci-app-daed#g' -e 's#package/custom/daed#package/daed#g' .github/workflows/validate-packages.yml
+          curl -fsSL 'https://aka.doubaocdn.com/s/TUXfrf88aD' -o build.sh
+          chmod +x build.sh
+          git rm --quiet .github/workflows/restructure.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'build: 定制包改放到 package 顶层与上游 lucky 容器，修正 build.sh 路径'
+          git push
+
+      - name: Verify
+        run: |
+          ls -d package/daed package/luci-app-daed package/lucky/lucky package/lucky/luci-app-lucky
+          test -e package/custom && echo '!! package/custom 还在' || echo 'package/custom 已清理'
+          grep -c 'PKG_VERSION:=3.5.0' package/lucky/lucky/Makefile
+          bash -n build.sh && echo 'build.sh 语法检查通过'
