@@ -1,0 +1,25 @@
+From: virus1999 <virus1999@users.noreply.github.com>
+Subject: [PATCH] net: airoha: declare ppe flow stats helper before use
+
+9999-15-net-airoha-report-unsupported-ppe-flow-stats.patch calls
+airoha_ppe_flow_stats_available() inside airoha_ppe_debugfs_foe_show(),
+while the static definition lives further down the same file. GCC 14+
+turns the resulting implicit declaration into an error and then rejects
+the definition as a conflicting type, so target/linux fails to build.
+
+Add a forward declaration right after the includes.
+
+---
+--- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+@@ -9,2 +9,10 @@
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
++/*
++ * airoha_ppe_flow_stats_available() is first used in
++ * airoha_ppe_debugfs_foe_show() but its definition lives further down the
++ * file. Add a forward declaration so the call sees the real prototype
++ * instead of an implicit int, and the definition below does not conflict.
++ */
++static bool airoha_ppe_flow_stats_available(struct airoha_ppe *ppe);
++
