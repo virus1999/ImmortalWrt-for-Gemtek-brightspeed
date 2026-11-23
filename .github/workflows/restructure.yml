@@ -1,0 +1,41 @@
+name: Restructure custom packages
+
+# 一次性维护任务：把四个自定义包从 package/custom/<name> 移到 package/<name>。
+# OpenWrt 的包扫描只认 package/ 下一层，package/custom/x 不会被 Kconfig 收录，
+# 也不会生成 make package/custom/x/compile 目标，所以必须先挪位置。
+# 跑完这个工作流可以把它删掉。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  move:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Move packages and rewrite paths
+        run: |
+          set -euo pipefail
+          for d in package/custom/*/; do
+            name="$(basename "$d")"
+            git mv "package/custom/$name" "package/$name"
+          done
+          rmdir package/custom
+          grep -rl 'package/custom/' --include='*.sh' --include='*.yml' --include='*.md' . || true
+          sed -i 's#package/custom/#package/#g' build.sh
+          sed -i 's#package/custom/#package/#g' .github/workflows/validate-packages.yml
+          sed -i 's#package/custom/#package/#g' .github/workflows/build-firmware.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'build: 自定义包从 package/custom 移到 package 顶层，符合包扫描约定'
+          git push
+
+      - name: Show result
+        run: |
+          ls -d package/lucky package/luci-app-lucky package/daed package/luci-app-daed
+          git log --oneline -1
