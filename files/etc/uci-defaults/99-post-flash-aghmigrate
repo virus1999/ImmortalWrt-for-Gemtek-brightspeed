@@ -1,0 +1,22 @@
+#!/bin/sh
+# 首次启动执行一次，执行后由 uci-defaults 机制自动删除。
+
+# 1) files/ 覆盖层里的脚本在 git 中没有执行位，这里补齐
+chmod +x /usr/bin/iptv-keepalive-loop /etc/init.d/iptv-keepalive /etc/hotplug.d/iface/96-iptv-mcast 2>/dev/null
+
+# 2) IPTV 组播保活开机自启（S99，晚于网络与 rtp2httpd）
+if [ -x /etc/init.d/iptv-keepalive ]; then
+	/etc/init.d/iptv-keepalive enable >/dev/null 2>&1
+fi
+
+# 3) AGH 服务交接：停用 feeds 版 adguardhome，改用 luci-app-adguardhome 的 AdGuardHome
+#    两者都指向 /usr/bin/AdGuardHome 与 /etc/adguardhome/adguardhome.yaml
+if [ -x /etc/init.d/adguardhome ]; then
+	/etc/init.d/adguardhome stop >/dev/null 2>&1
+	/etc/init.d/adguardhome disable >/dev/null 2>&1
+fi
+if [ -x /etc/init.d/AdGuardHome ]; then
+	/etc/init.d/AdGuardHome enable >/dev/null 2>&1
+fi
+
+exit 0
