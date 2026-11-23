@@ -40,6 +40,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Normalize file modes
+        run: |
+          # files/ 覆盖层里的脚本在 git 中缺少执行位，编译前补齐
+          chmod +x files/usr/bin/iptv-keepalive-loop files/etc/init.d/iptv-keepalive \
+                   files/etc/hotplug.d/iface/96-iptv-mcast files/etc/uci-defaults/*
+          ls -l files/usr/bin/iptv-keepalive-loop files/etc/init.d/iptv-keepalive files/etc/uci-defaults/
+
       - name: Generate build version
         id: version
         run: |
