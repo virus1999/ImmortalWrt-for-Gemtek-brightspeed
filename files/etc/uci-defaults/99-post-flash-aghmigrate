@@ -1,22 +1,39 @@
 #!/bin/sh
-# 首次启动执行一次，执行后由 uci-defaults 机制自动删除。
+# 首启执行一次，执行后由 uci-defaults 机制自动删除。
+#
+# 出厂化口径（2026-11-25）：
+#   * 镜像只装插件：不带 yaml、不带业务配置、不默认开启。
+#   * 这里只做“换台机器也能跑”的权限修补与去重，不写任何业务参数。
 
-# 1) files/ 覆盖层里的脚本在 git 中没有执行位，这里补齐
-chmod +x /usr/bin/iptv-keepalive-loop /etc/init.d/iptv-keepalive /etc/hotplug.d/iface/96-iptv-mcast 2>/dev/null
+# 1) files/ 覆盖层里的脚本在 git 里没有执行位，这里补齐（双保险，CI 也做一次）
+for f in /usr/bin/iptv-keepalive-loop \
+	/etc/init.d/iptv-keepalive \
+	/etc/hotplug.d/iface/96-iptv-mcast \
+	/usr/sbin/iptv-dhcp-hints \
+	/usr/sbin/pon-link-watchdog; do
+	[ -f "$f" ] && chmod 755 "$f"
+done
 
-# 2) IPTV 组播保活开机自启（S99，晚于网络与 rtp2httpd）
+# 2) AdGuardHome（Jane 版）：init 与 addhost.sh 必须可执行，
+#    否则 reset 后仅剩 644，web 端 enable 静默失效、进程起不来
+for f in /etc/init.d/AdGuardHome /usr/share/AdGuardHome/addhost.sh; do
+	[ -f "$f" ] && chmod 755 "$f"
+done
+
+# 3) IPTV 保活：只建 rc.d 挂钩；是否真启动由 init 自己判（enabled=1 且 mode=trunk）
 if [ -x /etc/init.d/iptv-keepalive ]; then
 	/etc/init.d/iptv-keepalive enable >/dev/null 2>&1
 fi
 
-# 3) AGH 服务交接：停用 feeds 版 adguardhome，改用 luci-app-adguardhome 的 AdGuardHome
-#    两者都指向 /usr/bin/AdGuardHome 与 /etc/adguardhome/adguardhome.yaml
+# 4) 同名服务去重：停用 feeds 版 adguardhome，只留 Jane 版 AdGuardHome
 if [ -x /etc/init.d/adguardhome ]; then
 	/etc/init.d/adguardhome stop >/dev/null 2>&1
 	/etc/init.d/adguardhome disable >/dev/null 2>&1
 fi
+
+# 5) 出厂默认关闭：不 enable AdGuardHome（旧版这里会 enable，导致刷完就起服务）
 if [ -x /etc/init.d/AdGuardHome ]; then
-	/etc/init.d/AdGuardHome enable >/dev/null 2>&1
+	/etc/init.d/AdGuardHome disable >/dev/null 2>&1
 fi
 
 exit 0

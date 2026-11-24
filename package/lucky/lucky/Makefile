@@ -68,9 +68,11 @@ define Package/lucky/description
  reverse proxy, ACME automation and related network services.
 endef
 
-define Package/lucky/conffiles
-/etc/config/lucky
-endef
+# 2026-11-25 出厂化：本包不再安装 /etc/config/lucky。
+# 以前的 ./files/luckyuci 会在出厂就写一份 enabled='1' 的配置，
+# 等于“刷完就带别人的配置、还默认开着”。现在只装二进制与 init，
+# 配置由用户在 LuCI 里自己建（lucky.init 的 enabled 默认值就是 0）。
+# conffiles 一并去掉，避免声明了一个不存在的文件。
 
 define Build/Prepare
 	gzip -dc $(DL_DIR)/$(PKG_SOURCE) | $(HOST_TAR) -C $(PKG_BUILD_DIR) -xf -
@@ -90,8 +92,6 @@ define Package/lucky/install
 	echo '$(LUCKY_ARCH)' > $(1)/usr/share/lucky/arch
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/lucky.init $(1)/etc/init.d/lucky
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/luckyuci $(1)/etc/config/lucky
 endef
 
 define Package/lucky/postinst
