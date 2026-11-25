@@ -1,0 +1,93 @@
+--- a/luci-app-onu/root/usr/libexec/iptv-apply
++++ b/luci-app-onu/root/usr/libexec/iptv-apply
+@@ -497,13 +497,14 @@
+ 	resolve_unicast_vlan
+ 
+ 	if [ "$MODE" = 'trunk' ]; then
+-		local mux_idx
+-
++		# 2026-11-25: trunk mode keeps ONE bridge for every handed-over VLAN.
++		# The set-top box only reports on the service VLAN, so a per-VLAN
++		# bridge split puts the membership in br-mux-1 while the stream arrives
++		# on br-mux-2 - the bridge never forwards and the picture freezes
++		# after ~10s (the 2026-11-25 field symptom).
+ 		resolve_relay_vlan
+-		mux_idx="$(mux_index_of_vid "$UNICAST_VLAN")" ||
+-			fail "Relay VLAN $UNICAST_VLAN has no mux bridge"
+-		UNICAST_DEV="br-mux-$mux_idx"
+-		UNICAST_IFACE="mux_iptv_$mux_idx"
++		UNICAST_DEV='br-mux-1'
++		UNICAST_IFACE='mux_iptv_1'
+ 	elif [ "$PROXY_ACTIVE" -eq 1 ]; then
+ 		UNICAST_DEV="$PROXY_UPLINK_DEV"
+ 		UNICAST_IFACE="$PROXY_UPLINK_IFACE"
+@@ -680,6 +681,21 @@
+ 	fi
+ }
+ 
++# 2026-11-25: every handed-over VLAN joins the same bridge br-mux-1.
++#
++# Shanghai Telecom delivers the live streams of different channels on either
++# the service VLAN (85) or the multicast VLAN (51), while the set-top box only
++# sends its IGMP reports on the service VLAN. With one bridge per VLAN the
++# membership lands in br-mux-1 (mux-dn1) and the stream arrives in br-mux-2
++# (mux-up2): the two never meet, nothing is forwarded, and the picture freezes
++# after about ten seconds - exactly the 2026-11-25 field symptom. Bridging all
++# the upstream VLAN devices into br-mux-1 lets a membership reported on mux-dn1
++# receive the stream from any upstream port, which is the topology that ran
++# stable on 2026-11-23/24.
++#
++# Only the first VLAN keeps a downstream (mux-dn1) device: the STB side of the
++# trunk cable only carries the service VLAN. The remaining VLANs are pure extra
++# upstreams on the same bridge.
+ write_trunk_network() {
+ 	local vid idx=0
+ 
+@@ -692,25 +708,29 @@
+ 		uci set "network.mux_up$idx.vid"="$vid"
+ 		uci set "network.mux_up$idx.name"="mux-up$idx"
+ 
+-		uci set "network.mux_dn$idx"='device'
+-		uci set "network.mux_dn$idx.type"='8021q'
+-		uci set "network.mux_dn$idx.ifname"="$TRUNK_PORT"
+-		uci set "network.mux_dn$idx.vid"="$vid"
+-		uci set "network.mux_dn$idx.name"="mux-dn$idx"
+-
+-		uci set "network.mux_br$idx"='device'
+-		uci set "network.mux_br$idx.type"='bridge'
+-		uci set "network.mux_br$idx.name"="br-mux-$idx"
+-		uci set "network.mux_br$idx.stp"='0'
+-		uci set "network.mux_br$idx.igmp_snooping"="$SNOOPING"
+-		uci set "network.mux_br$idx.multicast_querier"="$MULTICAST_QUERIER"
+-		uci add_list "network.mux_br$idx.ports"="mux-up$idx"
+-		uci add_list "network.mux_br$idx.ports"="mux-dn$idx"
+-
+-		uci set "network.mux_iptv_$idx"='interface'
+-		uci set "network.mux_iptv_$idx.device"="br-mux-$idx"
+-		configure_interface_address "mux_iptv_$idx" "br-mux-$idx"
++		if [ "$idx" -eq 1 ]; then
++			uci set "network.mux_dn1"='device'
++			uci set "network.mux_dn1.type"='8021q'
++			uci set "network.mux_dn1.ifname"="$TRUNK_PORT"
++			uci set "network.mux_dn1.vid"="$vid"
++			uci set "network.mux_dn1.name"='mux-dn1'
++
++			uci set "network.mux_br1"='device'
++			uci set "network.mux_br1.type"='bridge'
++			uci set "network.mux_br1.name"='br-mux-1'
++			uci set "network.mux_br1.stp"='0'
++			uci set "network.mux_br1.igmp_snooping"="$SNOOPING"
++			uci set "network.mux_br1.multicast_querier"="$MULTICAST_QUERIER"
++			uci add_list "network.mux_br1.ports"='mux-up1'
++			uci add_list "network.mux_br1.ports"='mux-dn1'
++		else
++			uci add_list "network.mux_br1.ports"="mux-up$idx"
++		fi
+ 	done
++
++	uci set "network.mux_iptv_1"='interface'
++	uci set "network.mux_iptv_1.device"='br-mux-1'
++	configure_interface_address "mux_iptv_1" 'br-mux-1'
+ }
+ 
+ write_bridge_network() {

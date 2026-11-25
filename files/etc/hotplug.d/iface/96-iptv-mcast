@@ -1,13 +1,16 @@
 #!/bin/sh
-# IPTV 组播口属性（条件化版，2026-11-25）
+# IPTV 组播口属性（条件化版，2026-11-25 单桥修订）
 #
-# 终态（与 11-23 验证一致）：三口 multicast_router=1 + mux-dn1 multicast_flood=1
-#   router=1 -> 让上游/本桥的 IGMP query 能转到机顶盒，盒子才会应答，成员才不 260s 过期
-#   flood=1  -> 兜底，只在“该组桥里没有成员”时起作用
+# 背景：2026-11-25 实测，上海电信不同频道的直播流分别落在服务 VLAN(85) 与
+# 组播 VLAN(51) 上，而机顶盒只在 85 面发 IGMP 报告。旧固件按 VLAN 各建一座桥，
+# 成员登记在 br-mux-1、流却从 br-mux-2 进来，桥永远凑不到一起
+#   -> 表现就是“出画面约十秒后冻结，换台又能再撑十秒”。
+# iptv-apply 已改为“所有划入的 VLAN 并进 br-mux-1”，本脚本据此把该桥里
+# 每个 mux-up*/mux-dn* 端口都设成 multicast_router=1：
+#   router=1 -> 上游/本桥的 IGMP query 能转到机顶盒，盒子才会应答，成员不再 260s 过期
+#   flood=1  -> 只给 mux-dn1 兜底，仅当该组在该桥里没有成员时生效
 #
-# 出厂化改动：只有“启用了 IPTV + 单线复用 trunk + 桥与端口存在”才动手，
-# 否则直接 skip 并把原因写进日志；不再无条件打 "applied"（那会让没有 IPTV 的机器
-# 看上去像配置生效了）。
+# 出厂化：只有“启用了 IPTV + 单线复用 trunk + 桥存在”才动手，否则 skip 并记日志。
 
 [ "$ACTION" = "ifup" ] || [ "$ACTION" = "ifupdate" ] || exit 0
 
@@ -29,17 +32,16 @@ BR=br-mux-1
 }
 
 changed=0
-for p in mux-up1 mux-dn1 mux-mc1; do
-	f=/sys/class/net/$BR/brif/$p/multicast_router
-	[ -e "$f" ] || continue
-	if [ "$(cat $f 2>/dev/null)" != "1" ]; then
-		echo 1 > $f 2>/dev/null && changed=$((changed + 1))
+for d in /sys/class/net/$BR/brif/mux-up* /sys/class/net/$BR/brif/mux-dn*; do
+	[ -e "$d/multicast_router" ] || continue
+	if [ "$(cat "$d/multicast_router" 2>/dev/null)" != "1" ]; then
+		echo 1 > "$d/multicast_router" 2>/dev/null && changed=$((changed + 1))
 	fi
 done
 
 f=/sys/class/net/$BR/brif/mux-dn1/multicast_flood
-if [ -e "$f" ] && [ "$(cat $f 2>/dev/null)" != "1" ]; then
-	echo 1 > $f 2>/dev/null && changed=$((changed + 1))
+if [ -e "$f" ] && [ "$(cat "$f" 2>/dev/null)" != "1" ]; then
+	echo 1 > "$f" 2>/dev/null && changed=$((changed + 1))
 fi
 
 if [ "$changed" -gt 0 ]; then
