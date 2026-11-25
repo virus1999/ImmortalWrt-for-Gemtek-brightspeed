@@ -1,0 +1,9 @@
+#!/bin/sh
+# 2026-11-25：为「小版本升级不重编」做的一次性接管。
+# /etc/lucky/ 在 /etc/sysupgrade.conf 的保留表里；只要把新核心放到
+# /etc/lucky/lucky，首次启动时把 /usr/bin/lucky 指过去，
+# 这样 sysupgrade 换掉 /usr/bin 之后，运行的仍是保留区里的那份。
+[ -x /etc/lucky/lucky ] || exit 0
+logger -t lucky-core "linking /usr/bin/lucky -> /etc/lucky/lucky"
+ln -sf /etc/lucky/lucky /usr/bin/lucky
+exit 0

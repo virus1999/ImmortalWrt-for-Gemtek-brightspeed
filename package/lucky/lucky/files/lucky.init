@@ -62,8 +62,16 @@ stop_service() {
 }
 
 watchdog() {
-	local service now last
+	local service now last uptime
 	procd_lock
+	# 开机保护：cron 在 S50 启动，lucky 排在 S99，watchdog 会比 init 更早跑一遍
+	# （2026-11-25 实测：10:06:00 检查、10:06:07 拉起，此时 rc.d 还停在 S90）。
+	# 前 3 分钟交给 init 自己起，避免每次开机都跟 S99lucky 抢。
+	read -r uptime _ < /proc/uptime
+	case "${uptime%%.*}" in
+	'' | *[!0-9]*) ;;
+	*) [ "${uptime%%.*}" -gt 180 ] || return 0 ;;
+	esac
 	[ ! -e "$STOP_MARKER" ] || return 0
 	case "$(uci -q get lucky.@lucky[0].watchdog)" in 1 | on | true | yes) ;; *) return 0 ;; esac
 	case "$(uci -q get lucky.@lucky[0].enabled)" in 1 | on | true | yes) ;; *) return 0 ;; esac

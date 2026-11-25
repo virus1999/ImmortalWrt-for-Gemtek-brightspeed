@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lucky
-PKG_VERSION:=3.5.0
+PKG_VERSION:=3.8.1
 PKG_RELEASE:=1
 
 PKG_LICENSE:=MIT
@@ -49,7 +49,9 @@ ifeq ($(ARCH),mipsel)
 endif
 
 PKG_SOURCE:=lucky_$(PKG_VERSION)_Linux_$(LUCKY_ARCH).tar.gz
-PKG_SOURCE_URL:=https://github.com/gdy666/lucky/releases/download/v$(PKG_VERSION)
+# 2026-11-25：官方 GitHub release 只发到 v3.5.0，3.8.x 只在作者的发布站。
+# 该站目录结构为 /v<ver>/<ver>_lucky/lucky_<ver>_Linux_<arch>.tar.gz，与 PKG_SOURCE 命名一致。
+PKG_SOURCE_URL:=https://release.66666.host/v$(PKG_VERSION)/$(PKG_VERSION)_lucky
 PKG_HASH:=skip
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 

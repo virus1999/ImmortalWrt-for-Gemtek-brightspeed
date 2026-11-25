@@ -95,6 +95,11 @@ jobs:
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # JaneCCP/luci-app-adguardhome 在 git 里没存执行位（100644），
+          # $(CP) 复制进镜像后会变成 644，/etc/init.d/AdGuardHome 无法执行。
+          # 2026-11-25：在 feeds 就位后补执行位（实测镜像内确为 644）。
+          chmod +x feeds/adguardhome/root/etc/init.d/AdGuardHome
+          ls -l feeds/adguardhome/root/etc/init.d/AdGuardHome
           bash scripts/fix-stale-golang-host.sh
 
       - name: Select feed providers
