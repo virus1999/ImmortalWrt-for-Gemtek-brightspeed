@@ -1,0 +1,20 @@
+--- a/root/etc/init.d/AdGuardHome
++++ b/root/etc/init.d/AdGuardHome
+@@ -438,4 +438,17 @@
+ 		exit 0
+ 	fi
+ 
++# 2026-11-26: bootstrap a missing config file. Without it start() falls into
++# the "waitconfig" branch, the LuCI page keeps reporting "not running" and
++# port 3000 never listens (field symptom after a flash that wiped /etc/adguardhome).
++if [ ! -f "$configpath" ]; then
++	mkdir -p "${configpath%/*}"
++	if [ -f /usr/share/AdGuardHome/AdGuardHome_template.yaml ]; then
++		cp -f /usr/share/AdGuardHome/AdGuardHome_template.yaml "$configpath"
++		local agh_port
++		config_get agh_port $CONFIGURATION old_port 5353
++		config_editor "dns.port" "$agh_port" "$configpath"
++		logger -t AdGuardHome "bootstrapped $configpath (dns.port=$agh_port)"
++	fi
++fi
+ 	config_get httpport $CONFIGURATION httpport 3000
