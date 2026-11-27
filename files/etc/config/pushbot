@@ -1,5 +1,5 @@
 config pushbot 'pushbot'
-	option pushbot_enable '1'
+	option pushbot_enable '0'
 	option sleeptime '60'
 	option thread_num '3'
 	option device_name 'XG2010G'

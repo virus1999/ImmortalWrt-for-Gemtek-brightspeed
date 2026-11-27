@@ -25,11 +25,17 @@ if [ -x /etc/init.d/iptv-keepalive ]; then
 	/etc/init.d/iptv-keepalive enable >/dev/null 2>&1
 fi
 
-# 4) 同名服务去重：停用 feeds 版 adguardhome，只留 Jane 版 AdGuardHome
-if [ -x /etc/init.d/adguardhome ]; then
+# 4) 同名服务去重（2026-11-28 加固）：feeds 版 adguardhome 直接改名，不只 disable。
+#    上一版只 disable，实测刷完它仍以 START=19 抢跑并占 5353，与 Jane 版互相打，
+#    表现为"停了又自起"、DNS 全 SERVFAIL。改名后 rc.d 链接和后续 apk 重建都拦得住。
+if [ -f /etc/init.d/adguardhome ] && [ ! -f /etc/init.d/adguardhome.off ]; then
 	/etc/init.d/adguardhome stop >/dev/null 2>&1
 	/etc/init.d/adguardhome disable >/dev/null 2>&1
+	mv /etc/init.d/adguardhome /etc/init.d/adguardhome.off
+	chmod 644 /etc/init.d/adguardhome.off
 fi
+rm -f /etc/rc.d/S[0-9][0-9]adguardhome /etc/rc.d/K[0-9][0-9]adguardhome
+uci -q set adguardhome.@adguardhome[0].enabled='0' 2>/dev/null
 
 # 5) 出厂默认关闭：不 enable AdGuardHome（旧版这里会 enable，导致刷完就起服务）
 if [ -x /etc/init.d/AdGuardHome ]; then

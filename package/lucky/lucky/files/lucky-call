@@ -48,8 +48,8 @@ service_action() {
 	local action="$1"
 	local enabled
 	case "$action" in
-	start | restart) enabled=1 ;;
-	stop) enabled=0 ;;
+	start | restart) enabled=1; "$INIT" enable > /dev/null 2>&1 ;;
+	stop) enabled=0; "$INIT" disable > /dev/null 2>&1 ;;
 	*) fail "Unsupported service action" 2 ;;
 	esac
 	uci -q set "lucky.@lucky[0].enabled=$enabled" || fail "Unable to update Lucky service state"
